@@ -2,6 +2,7 @@
 
 """Main module."""
 import math
+import heapq
 import scipy
 import numpy as np
 from os import listdir
@@ -82,6 +83,7 @@ class SVDAlgebra():
         return U
 
     def distance(self, wd1, wd2):
+        """returns the cosine distance btw wd1 and wd2"""
         try:
             wdidx1 = self.vocabulary.index(wd1)
             wdidx2 = self.vocabulary.index(wd2)
@@ -91,7 +93,25 @@ class SVDAlgebra():
         except Exception as e:
             print(e)
 
+    def most_similar_n(self, wd, n):
+        """returns the n most similar words to wd"""
+        try:
+            wdidx = self.vocabulary.index(wd)
+            w_vector = self.U[wdidx]
+            sims = list(self.U.dot(w_vector))
+            most_similar_values = heapq.nlargest(n+1, sims)
+            most_similar_indices = [sims.index(e) for e in list(most_similar_values)]
+            most_similar_words = [self.vocabulary[e] for e in most_similar_indices]
+            if wd in most_similar_words:
+                most_similar_words.remove(wd)
+            return most_similar_words
+        except Exception as e:
+            print(e)
+
     #TODO: more functions
-# a = SVDAlgebra('tests/testdata')
-# print(a.distance('alakítani', 'alakítsa'))
-# print(a.distance('normál', 'normál'))
+
+# just for testing
+a = SVDAlgebra('tests/testdata')
+print(a.distance('alakítani', 'alakítsa'))
+print(a.distance('normál', 'normál'))
+print(a.most_similar_n('normál', 10))
