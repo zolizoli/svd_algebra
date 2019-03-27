@@ -45,7 +45,7 @@ class SVDAlgebra():
 
     def generate_normalized_skipgrams(self):
         # skipgrams
-        t = skipgrams(self.corpus, 2, 5) # the last argument sets the window size
+        t = skipgrams(self.corpus, 2, 10) # the last argument sets the window size
         t_freqs = {}
         for e in t:
             if e not in t_freqs.keys():
@@ -114,12 +114,11 @@ class SVDAlgebra():
         except Exception as e:
             print(e)
 
-    # def save_pmi_model(self, name, dir):
-    #     scipy.sparse.save_npz(dir + '/' + name + '.U', self.U)
-    #     pickle.dumps(self.vocabulary, dir + '/' + '.p')
-    #
-    # def load_pmi_model(self):
-    #     pass
+    def save_model(self, name, dir):
+        pass
+
+    def load_pmi_model(self):
+        pass
     #TODO:
     # - take care of "private" functions
     # - serialize and load serialized model
@@ -130,6 +129,6 @@ class SVDAlgebra():
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
-# print(a.distance('alakítani', 'alakítsa'))
-# print(a.distance('normál', 'normál'))
-# print(a.most_similar_n('normál', 10))
+print(a.distance('adatfelvétel', 'adat'))
+print(a.distance('nép', 'népcsoport'))
+print(a.most_similar_n('adat', 10))
