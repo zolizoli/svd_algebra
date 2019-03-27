@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 
 """Main module."""
-import math
 import heapq
+import math
+from collections import Counter
+from os import listdir
+from os.path import isfile, join
+
 import scipy
 import numpy as np
-from os import listdir
-from scipy.spatial.distance import cosine
-from os.path import isfile, join
-from collections import Counter
-
 from nltk.util import skipgrams
+from scipy.spatial.distance import cosine
 
 
 class SVDAlgebra():
@@ -108,7 +108,12 @@ class SVDAlgebra():
         except Exception as e:
             print(e)
 
-    #TODO: more functions
+    #TODO:
+    # - take care of "private" functions
+    # - better corpus handling
+    # - faster ngram/skipgram/pmi matrix generation
+    # - pmi matrix to scipy sparse matrix
+    # - more functions
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
