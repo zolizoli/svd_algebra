@@ -3,6 +3,7 @@
 """Main module."""
 import heapq
 import math
+import pickle
 from collections import Counter
 from os import listdir
 from os.path import isfile, join
@@ -44,9 +45,13 @@ class SVDAlgebra():
 
     def generate_normalized_skipgrams(self):
         # skipgrams
-        #TODO: iterate over this generator and don't convert it into list
-        t = list(skipgrams(self.corpus, 2, 10))
-        t_freqs = Counter(t)
+        t = skipgrams(self.corpus, 2, 5) # the last argument sets the window size
+        t_freqs = {}
+        for e in t:
+            if e not in t_freqs.keys():
+                t_freqs[e] = 1
+            else:
+                t_freqs[e] += 1
         skip_total = sum(t_freqs.values())
         skip_probs = {}
         for k in t_freqs.keys():
@@ -109,6 +114,12 @@ class SVDAlgebra():
         except Exception as e:
             print(e)
 
+    # def save_pmi_model(self, name, dir):
+    #     scipy.sparse.save_npz(dir + '/' + name + '.U', self.U)
+    #     pickle.dumps(self.vocabulary, dir + '/' + '.p')
+    #
+    # def load_pmi_model(self):
+    #     pass
     #TODO:
     # - take care of "private" functions
     # - serialize and load serialized model
