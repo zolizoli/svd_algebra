@@ -14,7 +14,7 @@ from nltk.util import skipgrams
 from scipy.spatial.distance import cosine
 
 
-class SVDAlgebra():
+class SVDAlgebra:
 
     def __init__(self, corpus_dir):
         self.corpus_dir = corpus_dir
@@ -117,7 +117,7 @@ class SVDAlgebra():
     def save_model(self, name, dir):
         pass
 
-    def load_pmi_model(self):
+    def load_model(self):
         pass
     #TODO:
     # - take care of "private" functions
