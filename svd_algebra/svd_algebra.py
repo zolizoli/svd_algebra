@@ -131,11 +131,11 @@ class SVDAlgebra:
     # - more functions
 
 # just for testing
-a = SVDAlgebra('tests/testdata')
-a.save_model('test', 'tests/models')
-print(a.distance('adatfelvétel', 'adat'))
-print(a.distance('nép', 'népcsoport'))
-print(a.most_similar_n('adat', 10))
+# a = SVDAlgebra('tests/testdata')
+# a.save_model('test', 'tests/models')
+# print(a.distance('adatfelvétel', 'adat'))
+# print(a.distance('nép', 'népcsoport'))
+# print(a.most_similar_n('adat', 10))
 b = SVDAlgebra('tests/models')
 print(b.most_similar_n('szegregáció', 10))
 print(b.distance('adél', 'zsuzsanna'))
