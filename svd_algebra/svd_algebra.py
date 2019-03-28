@@ -17,41 +17,45 @@ from scipy.spatial.distance import cosine
 class SVDAlgebra:
 
     def __init__(self, corpus_dir):
-        self.corpus_dir = corpus_dir
-        self.corpus = self.read_corpus(self.corpus_dir)
-        self.unigram_probs = self.generate_unigram_probs(self.corpus)
-        self.vocabulary = sorted(self.unigram_probs.keys())
-        self.normalized_skipgram_probs = self.generate_normalized_skipgrams()
-        self.pmi_matrix = self.generate_pmi_matrix()
-        self.U = self.decompose_pmi()
+        fs = [f for f in listdir(corpus_dir) if isfile(join(corpus_dir, f))]
+        endings = [f.split('.')[1] for f in fs]
+        if 'npy' not in endings and 'p' not in endings:
+            self.corpus = self.read_corpus(self.corpus_dir)
+            self.unigram_probs, self.normalized_skipgram_probs = self.generate_skipgram_probs(self.corpus)
+            self.vocabulary = sorted(self.unigram_probs.keys())
+            self.pmi_matrix = self.generate_pmi_matrix()
+            self.U = self.decompose_pmi()
+        else:
+            U = [f for f in fs if f.endswith('.npy')][0]
+            vocab = [f for f in fs if f.endswith('.p')][0]
+            self.U = np.load(corpus_dir + '/' + U)
+            self.vocabulary = pickle.load(open(corpus_dir + '/' + vocab, 'rb'))
 
     def read_corpus(self, corpus_dir):
         txts = [f for f in listdir(corpus_dir)
                 if isfile(join(corpus_dir, f))]
-        corpus = []
         for txt in txts:
             with open(join(corpus_dir, txt), 'r') as f:
                 for l in f:
-                    corpus.extend(l.strip().split())
-        return corpus
+                    yield l.strip().split()
 
-    def generate_unigram_probs(self, corpus):
-        unigram_freqs = Counter(corpus)
+    def generate_skipgram_probs(self, corpus):
+        unigram_freqs = {}
+        t_freqs = {}
+        for text in corpus:
+            unigram_freqs.update(Counter(text))
+            t = skipgrams(text, 2, 10)
+            for e in t:
+                if e not in t_freqs.keys():
+                    t_freqs[e] = 1
+                else:
+                    t_freqs[e] += 1
+
         uni_total = sum(unigram_freqs.values())
         unigram_probs = {}
         for k in unigram_freqs.keys():
             unigram_probs[k] = unigram_freqs[k] / uni_total
-        return unigram_probs
 
-    def generate_normalized_skipgrams(self):
-        # skipgrams
-        t = skipgrams(self.corpus, 2, 10) # the last argument sets the window size
-        t_freqs = {}
-        for e in t:
-            if e not in t_freqs.keys():
-                t_freqs[e] = 1
-            else:
-                t_freqs[e] += 1
         skip_total = sum(t_freqs.values())
         skip_probs = {}
         for k in t_freqs.keys():
@@ -62,13 +66,13 @@ class SVDAlgebra:
         for k in skip_probs.keys():
             a = k[0]
             b = k[1]
-            pa = self.unigram_probs[a]
-            pb = self.unigram_probs[b]
+            pa = unigram_probs[a]
+            pb = unigram_probs[b]
             pab = skip_probs[k]
             nsp = math.log2(pab / pa / pb)
             normalized_skipgram_probs[k] = nsp
 
-        return normalized_skipgram_probs
+        return unigram_probs, normalized_skipgram_probs
 
     def generate_pmi_matrix(self):
         m = []
@@ -115,10 +119,13 @@ class SVDAlgebra:
             print(e)
 
     def save_model(self, name, dir):
-        pass
+        np.save(dir + '/' + name + '.npy', self.U)
+        pickle.dump(self.vocabulary, open(dir + '/' + name + '.p', 'wb'))
 
-    def load_model(self):
-        pass
+    # def load_model(self, name, dir):
+    #     self.U = np.load(dir + '/' + name + '.npy', self.U)
+    #     self.vocabulary = pickle.load(open(dir + '/' + name + '.p', 'rb'))
+
     #TODO:
     # - take care of "private" functions
     # - serialize and load serialized model
@@ -129,6 +136,10 @@ class SVDAlgebra:
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
+a.save_model('test', 'tests/models')
 print(a.distance('adatfelvétel', 'adat'))
 print(a.distance('nép', 'népcsoport'))
 print(a.most_similar_n('adat', 10))
+b = SVDAlgebra('tests/models')
+print(b.most_similar_n('szegregáció', 10))
+print(b.distance('adél', 'zsuzsanna'))
