@@ -20,7 +20,7 @@ class SVDAlgebra:
         fs = [f for f in listdir(corpus_dir) if isfile(join(corpus_dir, f))]
         endings = [f.split('.')[1] for f in fs]
         if 'npy' not in endings and 'p' not in endings:
-            self.corpus = self.read_corpus(self.corpus_dir)
+            self.corpus = self.read_corpus(corpus_dir)
             self.unigram_probs, self.normalized_skipgram_probs = self.generate_skipgram_probs(self.corpus)
             self.vocabulary = sorted(self.unigram_probs.keys())
             self.pmi_matrix = self.generate_pmi_matrix()
