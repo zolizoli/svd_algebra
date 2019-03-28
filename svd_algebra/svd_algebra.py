@@ -127,11 +127,7 @@ class SVDAlgebra:
     #     self.vocabulary = pickle.load(open(dir + '/' + name + '.p', 'rb'))
 
     #TODO:
-    # - take care of "private" functions
-    # - serialize and load serialized model
-    # - better corpus handling
-    # - faster ngram/skipgram/pmi matrix generation using batches
-    # - pmi matrix to scipy sparse matrix
+    # - better save/load corpus
     # - more functions
 
 # just for testing
