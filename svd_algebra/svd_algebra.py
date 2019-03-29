@@ -10,7 +10,8 @@ from os.path import isfile, join
 
 import scipy
 import numpy as np
-from nltk.util import skipgrams
+from keras.preprocessing.sequence import skipgrams
+from keras.preprocessing import text
 from scipy.spatial.distance import cosine
 
 
@@ -37,30 +38,52 @@ class SVDAlgebra:
         for txt in txts:
             with open(join(corpus_dir, txt), 'r') as f:
                 for l in f:
-                    yield l.strip().split()
+                    yield l.strip()
 
     def generate_skipgram_probs(self, corpus):
         unigram_freqs = {}
-        t_freqs = {}
-        for text in corpus:
-            unigram_freqs.update(Counter(text))
-            t = skipgrams(text, 2, 10)
-            for e in t:
-                if e not in t_freqs.keys():
-                    t_freqs[e] = 1
-                else:
-                    t_freqs[e] += 1
+        texts = []
+        for e in corpus:
+            unigram_freqs.update(Counter(e.split()))
+            texts.append(e)
 
         uni_total = sum(unigram_freqs.values())
         unigram_probs = {}
         for k in unigram_freqs.keys():
             unigram_probs[k] = unigram_freqs[k] / uni_total
 
+        tokenizer = text.Tokenizer()
+        tokenizer.fit_on_texts(texts)
+
+        word2id = tokenizer.word_index
+        id2word = {v: k for k, v in word2id.items()}
+        vocab_size = len(word2id) + 1
+
+        wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
+                in corpus]
+        skip_grams = [
+            skipgrams(wid, vocabulary_size=vocab_size, window_size=10) for wid
+            in wids]
+
+        t_freqs = {}
+        for i in range(len(skip_grams)):
+            pairs, labels = skip_grams[i][0], skip_grams[i][1]
+            for j in range(len(labels)):
+                if labels[j] == 1: # add only positive samples
+                    w1 = id2word[pairs[j][0]]
+                    w2 = id2word[pairs[j][1]]
+                    t = (w1, w2)
+                    if t not in t_freqs.keys():
+                        t_freqs[t] = 1
+                    else:
+                        t_freqs[t] += 1
+        del skip_grams
         skip_total = sum(t_freqs.values())
         skip_probs = {}
         for k in t_freqs.keys():
             skip_probs[k] = t_freqs[k] / skip_total
 
+        del t_freqs
         # normalized skipgrams
         normalized_skipgram_probs = {}
         for k in skip_probs.keys():
@@ -71,7 +94,7 @@ class SVDAlgebra:
             pab = skip_probs[k]
             nsp = math.log2(pab / pa / pb)
             normalized_skipgram_probs[k] = nsp
-
+        del skip_probs
         return unigram_probs, normalized_skipgram_probs
 
     def generate_pmi_matrix(self):
@@ -85,8 +108,8 @@ class SVDAlgebra:
                 else:
                     pmi = 0.0
                 row.append(pmi)
-            m.append(np.asarray(row))
-        return np.asarray(m)
+            m.append(row)
+        return scipy.sparse.csc_matrix(m)
 
     def decompose_pmi(self):
         U, S, V = scipy.sparse.linalg.svds(self.pmi_matrix, k=256)
@@ -131,11 +154,18 @@ class SVDAlgebra:
     # - more functions
 
 # just for testing
-# a = SVDAlgebra('tests/testdata')
-# a.save_model('test', 'tests/models')
-# print(a.distance('adatfelvétel', 'adat'))
-# print(a.distance('nép', 'népcsoport'))
-# print(a.most_similar_n('adat', 10))
-b = SVDAlgebra('tests/models')
-print(b.most_similar_n('szegregáció', 10))
-print(b.distance('adél', 'zsuzsanna'))
+a = SVDAlgebra('tests/testdata')
+a.save_model('test', 'tests/models')
+print(a.distance('adatfelvétel', 'adat'))
+print(a.distance('nép', 'népcsoport'))
+print(a.most_similar_n('adat', 10))
+# b = SVDAlgebra('tests/models')
+# print(b.most_similar_n('szegregáció', 10))
+# print(b.distance('adél', 'zsuzsanna'))
+# print(b.most_similar_n('cigány', 10))
+# print(b.distance('oláh', 'cigány'))
+# print(b.distance('beás', 'cigány'))
+# print(b.distance('beás', 'oláh'))
+# print(b.distance('roma', 'cigány'))
+# print(b.distance('beás', 'roma'))
+# print(b.distance('oláh', 'roma'))
