@@ -13,7 +13,7 @@ import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
 from scipy.spatial.distance import cosine
-
+from scipy.sparse.linalg import svds
 
 class SVDAlgebra:
 
@@ -98,21 +98,27 @@ class SVDAlgebra:
         return unigram_probs, normalized_skipgram_probs
 
     def generate_pmi_matrix(self):
-        m = []
-        for wd1 in self.vocabulary:
+        #TODO: swap rows and columns!
+        n = len(self.vocabulary)
+        M = scipy.sparse.lil_matrix((n, n), dtype=float)
+        for i in range(n):
             row = []
-            for wd2 in self.vocabulary:
-                k = (wd1, wd2)
+            for j in range(n):
+                w1 = self.vocabulary[i]
+                w2 = self.vocabulary[j]
+                k = (w1, w2)
                 if k in self.normalized_skipgram_probs.keys():
                     pmi = self.normalized_skipgram_probs[k]
                 else:
                     pmi = 0.0
                 row.append(pmi)
-            m.append(row)
-        return scipy.sparse.csc_matrix(m)
+            for cell in row:
+                M[i, j] = cell
+
+        return M
 
     def decompose_pmi(self):
-        U, S, V = scipy.sparse.linalg.svds(self.pmi_matrix, k=256)
+        U, S, V = svds(self.pmi_matrix, k=256)
         return U
 
     def distance(self, wd1, wd2):

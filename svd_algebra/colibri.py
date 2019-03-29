@@ -34,3 +34,19 @@ for i in range(len(skip_grams)):
             else:
                 t_freqs[t] += 1
 
+import scipy
+#vocab_size-1, vocab_size-1
+M = scipy.sparse.lil_matrix((100,100), dtype=float)
+voc = list(id2word.values())
+for i in range(len(voc[:100])):
+    row = []
+    for j in range(len(voc[:100])):
+        w1 = voc[i]
+        w2 = voc[j]
+        if (w1, w2) in t_freqs.keys():
+            pmi = t_freqs[(w1, w2)]
+        else:
+            pmi = 0.0
+        row.append(pmi)
+    for cell in row:
+        M[i, j] = cell
