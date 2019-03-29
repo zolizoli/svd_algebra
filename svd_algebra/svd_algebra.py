@@ -15,6 +15,7 @@ from keras.preprocessing import text
 from scipy.spatial.distance import cosine
 from scipy.sparse.linalg import svds
 
+
 class SVDAlgebra:
 
     def __init__(self, corpus_dir):
@@ -98,7 +99,7 @@ class SVDAlgebra:
         return unigram_probs, normalized_skipgram_probs
 
     def generate_pmi_matrix(self):
-        #TODO: swap rows and columns!
+        #TODO: swap rows and columns?
         n = len(self.vocabulary)
         M = scipy.sparse.lil_matrix((n, n), dtype=float)
         for i in range(n):
