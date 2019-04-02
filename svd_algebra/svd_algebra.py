@@ -2,6 +2,7 @@
 
 """Main module."""
 import heapq
+import icu
 import math
 import pickle
 from collections import Counter
@@ -19,20 +20,22 @@ from scipy.sparse.linalg import svds
 class SVDAlgebra:
 
     def __init__(self, corpus_dir):
+        #TODO: we need a much nicer and more pythonic __init_function
         fs = [f for f in listdir(corpus_dir) if isfile(join(corpus_dir, f))]
         endings = [f.split('.')[1] for f in fs]
         if 'npy' not in endings and 'p' not in endings:
             self.corpus = self.read_corpus(corpus_dir)
-            self.unigram_probs, self.normalized_skipgram_probs = self.generate_skipgram_probs(self.corpus)
-            self.vocabulary = sorted(self.unigram_probs.keys())
-            self.pmi_matrix = self.generate_pmi_matrix()
-            self.U = self.decompose_pmi()
+            self.vocabulary, self.U = self.decompose(self.corpus)
         else:
+            #TODO: use load_model instead of this part of init
             U = [f for f in fs if f.endswith('.npy')][0]
             vocab = [f for f in fs if f.endswith('.p')][0]
             self.U = np.load(corpus_dir + '/' + U)
             self.vocabulary = pickle.load(open(corpus_dir + '/' + vocab, 'rb'))
 
+    ###########################################################################
+    #####                     Initialize object                           #####
+    ###########################################################################
     def read_corpus(self, corpus_dir):
         txts = [f for f in listdir(corpus_dir)
                 if isfile(join(corpus_dir, f))]
@@ -41,7 +44,8 @@ class SVDAlgebra:
                 for l in f:
                     yield l.strip()
 
-    def generate_skipgram_probs(self, corpus):
+    def decompose(self, corpus):
+        ## uningram probabilities
         unigram_freqs = {}
         texts = []
         for e in corpus:
@@ -52,12 +56,14 @@ class SVDAlgebra:
         unigram_probs = {}
         for k in unigram_freqs.keys():
             unigram_probs[k] = unigram_freqs[k] / uni_total
+        del unigram_freqs # free up
 
+        ## initialize skipgram from keras
         tokenizer = text.Tokenizer()
         tokenizer.fit_on_texts(texts)
 
         word2id = tokenizer.word_index
-        id2word = {v: k for k, v in word2id.items()}
+        #id2word = {v: k for k, v in word2id.items()}
         vocab_size = len(word2id) + 1
 
         wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
@@ -66,62 +72,66 @@ class SVDAlgebra:
             skipgrams(wid, vocabulary_size=vocab_size, window_size=10) for wid
             in wids]
 
-        t_freqs = {}
+        # collect skipgram frequencies
+        skip_freqs = {}
         for i in range(len(skip_grams)):
             pairs, labels = skip_grams[i][0], skip_grams[i][1]
             for j in range(len(labels)):
                 if labels[j] == 1: # add only positive samples
-                    w1 = id2word[pairs[j][0]]
-                    w2 = id2word[pairs[j][1]]
-                    t = (w1, w2)
-                    if t not in t_freqs.keys():
-                        t_freqs[t] = 1
+                    if pairs[j] not in skip_freqs.keys():
+                        skip_freqs[pairs[j]] = 1
                     else:
-                        t_freqs[t] += 1
-        del skip_grams
-        skip_total = sum(t_freqs.values())
+                        skip_freqs[pairs[j]] += 1
+
+        skip_total = sum(skip_freqs.values())
+        # skipgram probabilities
         skip_probs = {}
-        for k in t_freqs.keys():
-            skip_probs[k] = t_freqs[k] / skip_total
+        for k in skip_freqs.keys():
+            skip_probs[k] = skip_freqs[k] / skip_total
+        del skip_freqs  # free up
 
-        del t_freqs
-        # normalized skipgrams
-        normalized_skipgram_probs = {}
-        for k in skip_probs.keys():
-            a = k[0]
-            b = k[1]
-            pa = unigram_probs[a]
-            pb = unigram_probs[b]
-            pab = skip_probs[k]
-            nsp = math.log2(pab / pa / pb)
-            normalized_skipgram_probs[k] = nsp
-        del skip_probs
-        return unigram_probs, normalized_skipgram_probs
+        ## vocabulary -> sort it!
+        collator = icu.Collator.createInstance(icu.Locale('hu_HU.UTF-8')) #TODO: language should be a parameter!
+        vocabulary = list(unigram_probs.keys()) # sort vocabulary
+        vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
-    def generate_pmi_matrix(self):
-        #TODO: swap rows and columns?
-        n = len(self.vocabulary)
+        # calculate pointwise mutual information for words
+        # store it in a scipy lil matrix
+        n = len(vocabulary)
         M = scipy.sparse.lil_matrix((n, n), dtype=float)
+
         for i in range(n):
-            row = []
             for j in range(n):
-                w1 = self.vocabulary[i]
-                w2 = self.vocabulary[j]
-                k = (w1, w2)
-                if k in self.normalized_skipgram_probs.keys():
-                    pmi = self.normalized_skipgram_probs[k]
+                a = vocabulary[i]
+                b = vocabulary[j]
+                k = (word2id[a], word2id[b])
+                if k in skip_probs.keys():
+                    pa = unigram_probs[a]
+                    pb = unigram_probs[b]
+                    pab = skip_probs[k]
+                    pmi = math.log2(pab / pa / pb)
                 else:
                     pmi = 0.0
-                row.append(pmi)
-            for cell in row:
-                M[i, j] = cell
+                M[i, j] = pmi # i, j -> row, column
 
-        return M
+        # singular value decomposition
+        U, _, _ = svds(M, k=256) # U, S, V
+        return vocabulary, U
 
-    def decompose_pmi(self):
-        U, S, V = svds(self.pmi_matrix, k=256)
-        return U
+    ###########################################################################
+    #####                      Serialize model                            #####
+    ###########################################################################
+    #TODO: add load model after the better __init__
+    def save_model(self, name, dir):
+        np.save(dir + '/' + name + '.npy', self.U)
+        pickle.dump(self.vocabulary, open(dir + '/' + name + '.p', 'wb'))
 
+    # def load_model(self, name, dir):
+    #     self.U = np.load(dir + '/' + name + '.npy', self.U)
+    #     self.vocabulary = pickle.load(open(dir + '/' + name + '.p', 'rb'))
+    ###########################################################################
+    #####                        Word Algebra                             #####
+    ###########################################################################
     def distance(self, wd1, wd2):
         """returns the cosine distance btw wd1 and wd2"""
         try:
@@ -148,13 +158,18 @@ class SVDAlgebra:
         except Exception as e:
             print(e)
 
-    def save_model(self, name, dir):
-        np.save(dir + '/' + name + '.npy', self.U)
-        pickle.dump(self.vocabulary, open(dir + '/' + name + '.p', 'wb'))
+    def similar(self, positive, negative, topn=3):
+        """Analogy difference"""
+        #TODO: implement function
+        pass
 
-    # def load_model(self, name, dir):
-    #     self.U = np.load(dir + '/' + name + '.npy', self.U)
-    #     self.vocabulary = pickle.load(open(dir + '/' + name + '.p', 'rb'))
+    def doesnt_match(self, lst):
+        """odd-one-out"""
+        #TODO: finish implementation
+        word_idxs = [self.vocabulary.index(wd) for wd in lst]
+        word_vectors = np.vstack(self.U[i] for i in word_idxs)
+        mean = np.mean(word_vectors)
+        pass
 
     #TODO:
     # - better save/load corpus
@@ -176,3 +191,4 @@ print(a.most_similar_n('adat', 10))
 # print(b.distance('roma', 'cigány'))
 # print(b.distance('beás', 'roma'))
 # print(b.distance('oláh', 'roma'))
+
