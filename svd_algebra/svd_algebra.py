@@ -2,13 +2,13 @@
 
 """Main module."""
 import heapq
-import icu
 import math
 import pickle
 from collections import Counter
 from os import listdir
 from os.path import isfile, join
 
+import icu
 import scipy
 import numpy as np
 from keras.preprocessing.sequence import skipgrams
@@ -45,6 +45,7 @@ class SVDAlgebra:
                     yield l.strip()
 
     def decompose(self, corpus):
+
         ## uningram probabilities
         unigram_freqs = {}
         texts = []
@@ -53,10 +54,12 @@ class SVDAlgebra:
             texts.append(e)
 
         uni_total = sum(unigram_freqs.values())
-        unigram_probs = {}
-        for k in unigram_freqs.keys():
-            unigram_probs[k] = unigram_freqs[k] / uni_total
-        del unigram_freqs # free up
+
+        ## vocabulary -> sort it!
+        collator = icu.Collator.createInstance(
+            icu.Locale('en_EN.UTF-8'))  # TODO: language should be a parameter!
+        vocabulary = list(unigram_freqs.keys())  # sort vocabulary
+        vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
         ## initialize skipgram from keras
         tokenizer = text.Tokenizer()
@@ -68,32 +71,25 @@ class SVDAlgebra:
 
         wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
                 in corpus]
-        skip_grams = [
-            skipgrams(wid, vocabulary_size=vocab_size, window_size=10) for wid
-            in wids]
+        # don't use negative samples and don't shuffle words!!!
+        skip_grams = [skipgrams(wid,
+                                vocabulary_size=vocab_size,
+                                window_size=5,
+                                negative_samples=0.0,
+                                shuffle=False)
+                      for wid in wids]
 
         # collect skipgram frequencies
         skip_freqs = {}
         for i in range(len(skip_grams)):
             pairs, labels = skip_grams[i][0], skip_grams[i][1]
             for j in range(len(labels)):
-                if labels[j] == 1: # add only positive samples
-                    if pairs[j] not in skip_freqs.keys():
-                        skip_freqs[pairs[j]] = 1
-                    else:
-                        skip_freqs[pairs[j]] += 1
+                if pairs[j] not in skip_freqs.keys():
+                    skip_freqs[pairs[j]] = 1
+                else:
+                    skip_freqs[pairs[j]] += 1
 
         skip_total = sum(skip_freqs.values())
-        # skipgram probabilities
-        skip_probs = {}
-        for k in skip_freqs.keys():
-            skip_probs[k] = skip_freqs[k] / skip_total
-        del skip_freqs  # free up
-
-        ## vocabulary -> sort it!
-        collator = icu.Collator.createInstance(icu.Locale('hu_HU.UTF-8')) #TODO: language should be a parameter!
-        vocabulary = list(unigram_probs.keys()) # sort vocabulary
-        vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
         # calculate pointwise mutual information for words
         # store it in a scipy lil matrix
@@ -105,18 +101,29 @@ class SVDAlgebra:
                 a = vocabulary[i]
                 b = vocabulary[j]
                 k = (word2id[a], word2id[b])
-                if k in skip_probs.keys():
-                    pa = unigram_probs[a]
-                    pb = unigram_probs[b]
-                    pab = skip_probs[k]
-                    pmi = math.log2(pab / pa / pb)
+                if k in skip_freqs.keys():
+                    pa = unigram_freqs[a] / uni_total
+                    pb = unigram_freqs[b] / uni_total
+                    pab = skip_freqs[k] / skip_total
+                    pmi = math.log2(pab / (pa * pb))
+                    # normalized pmi https://pdfs.semanticscholar.org/1521/8d9c029cbb903ae7c729b2c644c24994c201.pdf
+                    pmi2 = math.log2(pab**2 / (pa * pb))
+                    npmi = (pmi / math.log2(pab)) * -1.0
                 else:
                     pmi = 0.0
-                M[i, j] = pmi # i, j -> row, column
+                    npmi = 0.0
+                    pmi2 = 0.0
+                M[i, j] = npmi # i, j -> row, column
 
         # singular value decomposition
-        U, _, _ = svds(M, k=256) # U, S, V
-        return vocabulary, U
+        U, S, V = svds(M, k=256) # U, S, V
+        # Unorm = U / np.sqrt(np.sum(U * U, axis=1, keepdims=True))
+        # Vnorm = V / np.sqrt(np.sum(V * V, axis=0, keepdims=True))
+        word_vecs = U + V.T
+        word_vecs_norm = word_vecs / np.sqrt(
+            np.sum(word_vecs * word_vecs, axis=1, keepdims=True))
+
+        return vocabulary, word_vecs_norm
 
     ###########################################################################
     #####                      Serialize model                            #####
@@ -139,7 +146,7 @@ class SVDAlgebra:
             wdidx2 = self.vocabulary.index(wd2)
             w1_vector = self.U[wdidx1]
             w2_vector = self.U[wdidx2]
-            return cosine(w1_vector, w2_vector)
+            return min(cosine(w1_vector, w2_vector), 1.0) # nicer distance
         except Exception as e:
             print(e)
 
@@ -150,8 +157,10 @@ class SVDAlgebra:
             w_vector = self.U[wdidx]
             sims = list(self.U.dot(w_vector))
             most_similar_values = heapq.nlargest(n+1, sims)
-            most_similar_indices = [sims.index(e) for e in list(most_similar_values)]
-            most_similar_words = [self.vocabulary[e] for e in most_similar_indices]
+            most_similar_indices = [sims.index(e) for e
+                                    in list(most_similar_values)]
+            most_similar_words = [self.vocabulary[e] for e
+                                  in most_similar_indices]
             if wd in most_similar_words:
                 most_similar_words.remove(wd)
             return most_similar_words
@@ -178,9 +187,9 @@ class SVDAlgebra:
 # just for testing
 a = SVDAlgebra('tests/testdata')
 a.save_model('test', 'tests/models')
-print(a.distance('adatfelvétel', 'adat'))
-print(a.distance('nép', 'népcsoport'))
-print(a.most_similar_n('adat', 10))
+# print(a.distance('adatfelvétel', 'adat'))
+# print(a.distance('nép', 'népcsoport'))
+# print(a.most_similar_n('adat', 10))
 # b = SVDAlgebra('tests/models')
 # print(b.most_similar_n('szegregáció', 10))
 # print(b.distance('adél', 'zsuzsanna'))
