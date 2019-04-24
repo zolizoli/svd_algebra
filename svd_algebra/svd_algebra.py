@@ -14,6 +14,7 @@ import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
 from scipy.spatial.distance import cosine
+from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import svds
 
 
@@ -57,7 +58,7 @@ class SVDAlgebra:
 
         ## vocabulary -> sort it!
         collator = icu.Collator.createInstance(
-            icu.Locale('en_EN.UTF-8'))  # TODO: language should be a parameter!
+            icu.Locale('hu_HU.UTF-8'))  # TODO: language should be a parameter!
         vocabulary = list(unigram_freqs.keys())  # sort vocabulary
         vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
@@ -66,7 +67,7 @@ class SVDAlgebra:
         tokenizer.fit_on_texts(texts)
 
         word2id = tokenizer.word_index
-        #id2word = {v: k for k, v in word2id.items()}
+        id2word = {v: k for k, v in word2id.items()}
         vocab_size = len(word2id) + 1
 
         wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
@@ -74,7 +75,7 @@ class SVDAlgebra:
         # don't use negative samples and don't shuffle words!!!
         skip_grams = [skipgrams(wid,
                                 vocabulary_size=vocab_size,
-                                window_size=5,
+                                window_size=10,
                                 negative_samples=0.0,
                                 shuffle=False)
                       for wid in wids]
@@ -94,36 +95,33 @@ class SVDAlgebra:
         # calculate pointwise mutual information for words
         # store it in a scipy lil matrix
         n = len(vocabulary)
-        M = scipy.sparse.lil_matrix((n, n), dtype=float)
+        data = []
+        row = []
+        col = []
+        for k in skip_freqs.keys():
+            a = id2word[k[0]]
+            b = id2word[k[1]]
+            pa = unigram_freqs[a] / uni_total
+            pb = unigram_freqs[b] / uni_total
+            pab = skip_freqs[k] / skip_total
+            pmi = math.log2(pab / (pa * pb))
+            # normalized pmi https://pdfs.semanticscholar.org/1521/8d9c029cbb903ae7c729b2c644c24994c201.pdf
+            #pmi2 = math.log2(pab**2 / (pa * pb))
+            npmi = (pmi / math.log2(pab)) * -1.0
+            data.append(npmi)
+            row.append(vocabulary.index(a))
+            col.append(vocabulary.index(b))
 
-        for i in range(n):
-            for j in range(n):
-                a = vocabulary[i]
-                b = vocabulary[j]
-                k = (word2id[a], word2id[b])
-                if k in skip_freqs.keys():
-                    pa = unigram_freqs[a] / uni_total
-                    pb = unigram_freqs[b] / uni_total
-                    pab = skip_freqs[k] / skip_total
-                    pmi = math.log2(pab / (pa * pb))
-                    # normalized pmi https://pdfs.semanticscholar.org/1521/8d9c029cbb903ae7c729b2c644c24994c201.pdf
-                    pmi2 = math.log2(pab**2 / (pa * pb))
-                    npmi = (pmi / math.log2(pab)) * -1.0
-                else:
-                    pmi = 0.0
-                    npmi = 0.0
-                    pmi2 = 0.0
-                M[i, j] = npmi # i, j -> row, column
-
+        M = coo_matrix((data, (row, col)), shape=(n, n))
         # singular value decomposition
         U, S, V = svds(M, k=256) # U, S, V
         # Unorm = U / np.sqrt(np.sum(U * U, axis=1, keepdims=True))
         # Vnorm = V / np.sqrt(np.sum(V * V, axis=0, keepdims=True))
-        word_vecs = U + V.T
-        word_vecs_norm = word_vecs / np.sqrt(
-            np.sum(word_vecs * word_vecs, axis=1, keepdims=True))
+        # word_vecs = U + V.T
+        # word_vecs_norm = word_vecs / np.sqrt(
+        #     np.sum(word_vecs * word_vecs, axis=1, keepdims=True))
 
-        return vocabulary, word_vecs_norm
+        return vocabulary, U
 
     ###########################################################################
     #####                      Serialize model                            #####
