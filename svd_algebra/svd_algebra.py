@@ -67,9 +67,9 @@ class SVDAlgebra:
 
         # use only vocabulary words for building the skipgram model
         filtered_texts = []
-        for text in texts:
-            t = text.split()
-            t = [wd for wd in text if wd in vocabulary]
+        for txt in texts:
+            t = txt.split()
+            t = [wd for wd in txt if wd in vocabulary]
             filtered_texts.append(' '.join(t))
         ## initialize skipgram from keras
         tokenizer = text.Tokenizer()
