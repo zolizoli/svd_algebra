@@ -9,7 +9,6 @@ from os import listdir
 from os.path import isfile, join
 
 import icu
-import scipy
 import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
@@ -71,7 +70,7 @@ class SVDAlgebra:
         vocab_size = len(word2id) + 1
 
         wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
-                in corpus]
+                in texts]
         # don't use negative samples and don't shuffle words!!!
         skip_grams = [skipgrams(wid,
                                 vocabulary_size=vocab_size,
@@ -83,12 +82,12 @@ class SVDAlgebra:
         # collect skipgram frequencies
         skip_freqs = {}
         for i in range(len(skip_grams)):
-            pairs, labels = skip_grams[i][0], skip_grams[i][1]
-            for j in range(len(labels)):
-                if pairs[j] not in skip_freqs.keys():
-                    skip_freqs[pairs[j]] = 1
+            pairs, _ = skip_grams[i][0], skip_grams[i][1]
+            for p in pairs:
+                if (p[0], p[1]) not in skip_freqs.keys():
+                    skip_freqs[(p[0], p[1])] = 1
                 else:
-                    skip_freqs[pairs[j]] += 1
+                    skip_freqs[(p[0], p[1])] += 1
 
         skip_total = sum(skip_freqs.values())
 
@@ -98,29 +97,27 @@ class SVDAlgebra:
         data = []
         row = []
         col = []
-        for k in skip_freqs.keys():
+        #TODO: we have a bottleneck here, this is way too slow
+        # either we iterate over the dict, so we have enough RAM
+        # or we use ProcessPoolExecutor and we don't have enough RAM
+        for k, v in skip_freqs.items():
             a = id2word[k[0]]
             b = id2word[k[1]]
             pa = unigram_freqs[a] / uni_total
             pb = unigram_freqs[b] / uni_total
-            pab = skip_freqs[k] / skip_total
+            pab = v / skip_total
             pmi = math.log2(pab / (pa * pb))
             # normalized pmi https://pdfs.semanticscholar.org/1521/8d9c029cbb903ae7c729b2c644c24994c201.pdf
-            #pmi2 = math.log2(pab**2 / (pa * pb))
             npmi = (pmi / math.log2(pab)) * -1.0
+            #TODO: try out other normalization techniques
             data.append(npmi)
             row.append(vocabulary.index(a))
             col.append(vocabulary.index(b))
-
         M = coo_matrix((data, (row, col)), shape=(n, n))
         # singular value decomposition
-        U, S, V = svds(M, k=256) # U, S, V
-        # Unorm = U / np.sqrt(np.sum(U * U, axis=1, keepdims=True))
-        # Vnorm = V / np.sqrt(np.sum(V * V, axis=0, keepdims=True))
-        # word_vecs = U + V.T
-        # word_vecs_norm = word_vecs / np.sqrt(
-        #     np.sum(word_vecs * word_vecs, axis=1, keepdims=True))
-
+        U, _, _ = svds(M, k=256) # U, S, V
+        #TODO: save M too, it might be better than U
+        # see https://rare-technologies.com/making-sense-of-word2vec/
         return vocabulary, U
 
     ###########################################################################
@@ -185,17 +182,7 @@ class SVDAlgebra:
 # just for testing
 a = SVDAlgebra('tests/testdata')
 a.save_model('test', 'tests/models')
-# print(a.distance('adatfelvétel', 'adat'))
-# print(a.distance('nép', 'népcsoport'))
-# print(a.most_similar_n('adat', 10))
-# b = SVDAlgebra('tests/models')
-# print(b.most_similar_n('szegregáció', 10))
-# print(b.distance('adél', 'zsuzsanna'))
-# print(b.most_similar_n('cigány', 10))
-# print(b.distance('oláh', 'cigány'))
-# print(b.distance('beás', 'cigány'))
-# print(b.distance('beás', 'oláh'))
-# print(b.distance('roma', 'cigány'))
-# print(b.distance('beás', 'roma'))
-# print(b.distance('oláh', 'roma'))
-
+#TODO:
+# initialize an empty object like a = SVDAlgebra()
+# read in a cropus like a.read_corpus(path-to-folder)
+# read in a model a.load_model(pat-to-model)
