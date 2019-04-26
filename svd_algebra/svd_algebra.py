@@ -97,6 +97,7 @@ class SVDAlgebra:
         data = []
         row = []
         col = []
+        alpha = 0.75 # context distribution smoothing
         #TODO: we have a bottleneck here, this is way too slow
         # either we iterate over the dict, so we have enough RAM
         # or we use ProcessPoolExecutor and we don't have enough RAM
@@ -104,21 +105,20 @@ class SVDAlgebra:
             a = id2word[k[0]]
             b = id2word[k[1]]
             pa = unigram_freqs[a] / uni_total
-            pb = unigram_freqs[b] / uni_total
+            pb = (unigram_freqs[b] / uni_total) ** alpha
             pab = v / skip_total
-            pmi = math.log2(pab / (pa * pb))
-            # normalized pmi https://pdfs.semanticscholar.org/1521/8d9c029cbb903ae7c729b2c644c24994c201.pdf
-            npmi = (pmi / math.log2(pab)) * -1.0
-            #TODO: try out other normalization techniques
+            npmi = math.log2(pab / (pa * pb))
             data.append(npmi)
             row.append(vocabulary.index(a))
             col.append(vocabulary.index(b))
         M = coo_matrix((data, (row, col)), shape=(n, n))
         # singular value decomposition
-        U, _, _ = svds(M, k=256) # U, S, V
-        #TODO: save M too, it might be better than U
-        # see https://rare-technologies.com/making-sense-of-word2vec/
-        return vocabulary, U
+        U, S, V = svds(M, k=256) # U, S, V
+        word_vecs = U + V.T
+        word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs*word_vecs,
+                                                    axis=0,
+                                                    keepdims=True))
+        return vocabulary, word_vecs_norm
 
     ###########################################################################
     #####                      Serialize model                            #####
@@ -181,7 +181,7 @@ class SVDAlgebra:
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
-a.save_model('test', 'tests/models')
+a.save_model('mese', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
