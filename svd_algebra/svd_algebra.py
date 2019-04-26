@@ -52,28 +52,35 @@ class SVDAlgebra:
         for e in corpus:
             unigram_freqs.update(Counter(e.split()))
             texts.append(e)
-        #TODO:
-        # - subsampling p = 1 - (10**-5/freq)**0.5
-        # - deleting rare words ~ 10
-
+        unigram_relfreqs = {}
         uni_total = sum(unigram_freqs.values())
-
+        for k,v in unigram_freqs.items():
+            relfreq = v / uni_total
+            # subsampling and deleting rare words
+            if relfreq < 1 - (((10**-5)/relfreq)**0.5) and v > 10:
+                unigram_relfreqs[k] = relfreq
         ## vocabulary -> sort it!
         collator = icu.Collator.createInstance(
             icu.Locale('hu_HU.UTF-8'))  # TODO: language should be a parameter!
-        vocabulary = list(unigram_freqs.keys())  # sort vocabulary
+        vocabulary = list(unigram_relfreqs.keys())  # sort vocabulary
         vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
+        # use only vocabulary words for building the skipgram model
+        filtered_texts = []
+        for text in texts:
+            t = text.split()
+            t = [wd for wd in text if wd in vocabulary]
+            filtered_texts.append(' '.join(t))
         ## initialize skipgram from keras
         tokenizer = text.Tokenizer()
-        tokenizer.fit_on_texts(texts)
+        tokenizer.fit_on_texts(filtered_texts)
 
         word2id = tokenizer.word_index
         id2word = {v: k for k, v in word2id.items()}
         vocab_size = len(word2id) + 1
 
         wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
-                in texts]
+                in filtered_texts]
         # don't use negative samples and don't shuffle words!!!
         skip_grams = [skipgrams(wid,
                                 vocabulary_size=vocab_size,
@@ -107,8 +114,8 @@ class SVDAlgebra:
         for k, v in skip_freqs.items():
             a = id2word[k[0]]
             b = id2word[k[1]]
-            pa = unigram_freqs[a] / uni_total
-            pb = (unigram_freqs[b] / uni_total) ** alpha
+            pa = unigram_relfreqs[a]
+            pb = unigram_relfreqs[b] ** alpha
             pab = v / skip_total
             npmi = math.log2(pab / (pa * pb))
             data.append(npmi)
@@ -188,4 +195,4 @@ a.save_model('ady', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
-# read in a model a.load_model(pat-to-model)
+# read in a model a.load_model(path-to-model)
