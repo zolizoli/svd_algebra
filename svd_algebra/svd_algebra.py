@@ -52,6 +52,9 @@ class SVDAlgebra:
         for e in corpus:
             unigram_freqs.update(Counter(e.split()))
             texts.append(e)
+        #TODO:
+        # - subsampling p = 1 - (10**-5/freq)**0.5
+        # - deleting rare words ~ 10
 
         uni_total = sum(unigram_freqs.values())
 
@@ -113,7 +116,7 @@ class SVDAlgebra:
             col.append(vocabulary.index(b))
         M = coo_matrix((data, (row, col)), shape=(n, n))
         # singular value decomposition
-        U, S, V = svds(M, k=256) # U, S, V
+        U, _, V = svds(M, k=256) # U, S, V
         word_vecs = U + V.T
         word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs*word_vecs,
                                                     axis=0,
@@ -181,7 +184,7 @@ class SVDAlgebra:
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
-a.save_model('mese', 'tests/models')
+a.save_model('ady', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
