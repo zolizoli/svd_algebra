@@ -4,6 +4,7 @@
 import heapq
 import math
 import pickle
+import random
 from collections import Counter
 from os import listdir
 from os.path import isfile, join
@@ -53,23 +54,29 @@ class SVDAlgebra:
             unigram_freqs.update(Counter(e.split()))
             texts.append(e)
         unigram_relfreqs = {}
+
+        # naive subsampling and deleting rare words
+        freqs = list(unigram_freqs.values())
+        freqs.sort()
+        freqs = set(freqs[int(len(freqs)*0.2):int(len(freqs)*0.8)])
         uni_total = sum(unigram_freqs.values())
-        for k,v in unigram_freqs.items():
+        for k, v in unigram_freqs.items():
             relfreq = v / uni_total
-            # subsampling and deleting rare words
-            if relfreq < 1 - (((10**-5)/relfreq)**0.5) and v > 10:
+            if v in freqs:
                 unigram_relfreqs[k] = relfreq
-        ## vocabulary -> sort it!
+
+
         collator = icu.Collator.createInstance(
             icu.Locale('hu_HU.UTF-8'))  # TODO: language should be a parameter!
         vocabulary = list(unigram_relfreqs.keys())  # sort vocabulary
         vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
+
         # use only vocabulary words for building the skipgram model
         filtered_texts = []
         for txt in texts:
             t = txt.split()
-            t = [wd for wd in txt if wd in vocabulary]
+            t = [wd for wd in t if wd in vocabulary]
             filtered_texts.append(' '.join(t))
         ## initialize skipgram from keras
         tokenizer = text.Tokenizer()
