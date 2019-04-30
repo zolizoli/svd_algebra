@@ -39,16 +39,20 @@ skip_grams = [skipgrams(wid,
               for wid in wids]
 
 # collect skipgram frequencies
+skipn = sum([len(s) for s in skip_grams])
 skip_freqs = dict()
+code_skip = dict.fromkeys(range(0, skipn))
+code = 0
 for skip in skip_grams:
     raw_skip = [(p[0], p[1])for p in skip[0]]
     freqs = Counter(raw_skip)
     for k,v in freqs.items():
+        code_skip[code] = k
         if k not in skip_freqs:
-            skip_freqs[k] = v
+            skip_freqs[code] = v
         else:
-            skip_freqs[k] += v
-
+            skip_freqs[code] += v
+        code += 1
 skip_total = sum(skip_freqs.values())
 alpha = 0.75
 n = len(vocabulary)
@@ -57,7 +61,8 @@ row = []
 col = []
 
 
-for k, v in skip_freqs.items():
+for c, v in skip_freqs.items():
+    k = code_skip[c]
     a = idx2word[k[0]]
     b = idx2word[k[1]]
     aidx = vocabulary.index(a)
