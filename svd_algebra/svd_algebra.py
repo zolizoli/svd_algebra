@@ -46,41 +46,25 @@ class SVDAlgebra:
 
     def decompose(self, corpus):
 
-        ## uningram probabilities
-        unigram_freqs = {}
         texts = []
         for e in corpus:
-            unigram_freqs.update(Counter(e.split()))
             texts.append(e)
-        unigram_relfreqs = {}
-        uni_total = sum(unigram_freqs.values())
-        for k,v in unigram_freqs.items():
-            relfreq = v / uni_total
-            # subsampling and deleting rare words
-            if relfreq < 1 - (((10**-5)/relfreq)**0.5) and v > 10:
-                unigram_relfreqs[k] = relfreq
-        ## vocabulary -> sort it!
-        collator = icu.Collator.createInstance(
-            icu.Locale('hu_HU.UTF-8'))  # TODO: language should be a parameter!
-        vocabulary = list(unigram_relfreqs.keys())  # sort vocabulary
-        vocabulary = sorted(vocabulary, key=collator.getSortKey)
 
-        # use only vocabulary words for building the skipgram model
-        filtered_texts = []
-        for txt in texts:
-            t = txt.split()
-            t = [wd for wd in txt if wd in vocabulary]
-            filtered_texts.append(' '.join(t))
-        ## initialize skipgram from keras
-        tokenizer = text.Tokenizer()
-        tokenizer.fit_on_texts(filtered_texts)
+        # tokenize, get unigram probs
+        tokenizer = text.Tokenizer(filters='\t\n')
+        tokenizer.fit_on_texts(texts)
+        idx2word = tokenizer.index_word
+        word2idx = tokenizer.word_index
+        vocabulary = list(word2idx.keys())
+        vocab_size = len(vocabulary) + 1
 
-        word2id = tokenizer.word_index
-        id2word = {v: k for k, v in word2id.items()}
-        vocab_size = len(word2id) + 1
+        doc_freq = tokenizer.texts_to_matrix(texts, mode='freq')
+        word_freq = np.average(doc_freq, axis=0)[1:]
 
-        wids = [[word2id[w] for w in text.text_to_word_sequence(doc)] for doc
-                in filtered_texts]
+        # skipgrams
+        wids = [[word2idx[w] for w in
+                 text.text_to_word_sequence(doc, filters='\t\n')]
+                for doc in texts]
         # don't use negative samples and don't shuffle words!!!
         skip_grams = [skipgrams(wid,
                                 vocabulary_size=vocab_size,
@@ -88,44 +72,43 @@ class SVDAlgebra:
                                 negative_samples=0.0,
                                 shuffle=False)
                       for wid in wids]
+        skip_grams = [s[0] for s in skip_grams]
+        skip_grams = [[(p[0], p[1]) for p in s] for s in skip_grams]
 
         # collect skipgram frequencies
-        skip_freqs = {}
-        for i in range(len(skip_grams)):
-            pairs, _ = skip_grams[i][0], skip_grams[i][1]
-            for p in pairs:
-                if (p[0], p[1]) not in skip_freqs.keys():
-                    skip_freqs[(p[0], p[1])] = 1
-                else:
-                    skip_freqs[(p[0], p[1])] += 1
-
+        skip_freqs = dict()
+        for skip in skip_grams:
+            freqs = Counter(skip)
+            skip_freqs.update(freqs)
         skip_total = sum(skip_freqs.values())
 
-        # calculate pointwise mutual information for words
-        # store it in a scipy lil matrix
+        # generate sparse pmi matrix
+        alpha = 0.75
         n = len(vocabulary)
         data = []
         row = []
         col = []
-        alpha = 0.75 # context distribution smoothing
-        #TODO: we have a bottleneck here, this is way too slow
-        # either we iterate over the dict, so we have enough RAM
-        # or we use ProcessPoolExecutor and we don't have enough RAM
         for k, v in skip_freqs.items():
-            a = id2word[k[0]]
-            b = id2word[k[1]]
-            pa = unigram_relfreqs[a]
-            pb = unigram_relfreqs[b] ** alpha
+            a = idx2word[k[0]]
+            b = idx2word[k[1]]
+            aidx = vocabulary.index(a)
+            bidx = vocabulary.index(b)
+            pa = word_freq[aidx]
+            pb = word_freq[bidx] ** alpha
             pab = v / skip_total
             npmi = math.log2(pab / (pa * pb))
             data.append(npmi)
-            row.append(vocabulary.index(a))
-            col.append(vocabulary.index(b))
+            row.append(aidx)
+            col.append(aidx)
+
         M = coo_matrix((data, (row, col)), shape=(n, n))
+
         # singular value decomposition
-        U, _, V = svds(M, k=256) # U, S, V
+        U, _, V = svds(M, k=256)  # U, S, V
+        # add context to U
         word_vecs = U + V.T
-        word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs*word_vecs,
+        # normalize rows
+        word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs * word_vecs,
                                                     axis=0,
                                                     keepdims=True))
         return vocabulary, word_vecs_norm
@@ -191,7 +174,7 @@ class SVDAlgebra:
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
-a.save_model('ady', 'tests/models')
+a.save_model('mese', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
