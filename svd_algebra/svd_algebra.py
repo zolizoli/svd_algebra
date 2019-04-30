@@ -8,7 +8,6 @@ from collections import Counter
 from os import listdir
 from os.path import isfile, join
 
-import icu
 import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
@@ -79,7 +78,11 @@ class SVDAlgebra:
         skip_freqs = dict()
         for skip in skip_grams:
             freqs = Counter(skip)
-            skip_freqs.update(freqs)
+            for k, v in freqs.items():
+                if k not in skip_freqs:
+                    skip_freqs[k] = v
+                else:
+                    skip_freqs[k] += v
         skip_total = sum(skip_freqs.values())
 
         # generate sparse pmi matrix
