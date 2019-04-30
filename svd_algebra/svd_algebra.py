@@ -71,18 +71,18 @@ class SVDAlgebra:
                                 negative_samples=0.0,
                                 shuffle=False)
                       for wid in wids]
-        skip_grams = [s[0] for s in skip_grams]
-        skip_grams = [[(p[0], p[1]) for p in s] for s in skip_grams]
 
         # collect skipgram frequencies
         skip_freqs = dict()
         for skip in skip_grams:
-            freqs = Counter(skip)
+            raw_skip = [(p[0], p[1]) for p in skip[0]]
+            freqs = Counter(raw_skip)
             for k, v in freqs.items():
                 if k not in skip_freqs:
                     skip_freqs[k] = v
                 else:
                     skip_freqs[k] += v
+
         skip_total = sum(skip_freqs.values())
 
         # generate sparse pmi matrix
@@ -91,6 +91,7 @@ class SVDAlgebra:
         data = []
         row = []
         col = []
+        # bottleneck
         for k, v in skip_freqs.items():
             a = idx2word[k[0]]
             b = idx2word[k[1]]

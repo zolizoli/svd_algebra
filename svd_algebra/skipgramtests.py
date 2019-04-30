@@ -7,15 +7,14 @@ from os.path import isfile, join
 import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
-from scipy.spatial.distance import cosine
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import svds
-
-
-with open('tests/testdata/ady.txt', 'r') as f:
-    texts = [f.read().strip()]
+from concurrent.futures import ProcessPoolExecutor
 
 with open('tests/testdata/mesek.txt', 'r') as f:
+    texts = [f.read().strip()]
+
+with open('tests/testdata/ady.txt', 'r') as f:
     texts.append(f.read().strip())
 
 
@@ -38,19 +37,26 @@ skip_grams = [skipgrams(wid,
                         negative_samples=0.0,
                         shuffle=False)
               for wid in wids]
-skip_grams = [s[0] for s in skip_grams]
-skip_grams = [[(p[0], p[1]) for p in s] for s in skip_grams]
+
 # collect skipgram frequencies
 skip_freqs = dict()
 for skip in skip_grams:
-    freqs = Counter(skip)
-    skip_freqs.update(freqs)
+    raw_skip = [(p[0], p[1])for p in skip[0]]
+    freqs = Counter(raw_skip)
+    for k,v in freqs.items():
+        if k not in skip_freqs:
+            skip_freqs[k] = v
+        else:
+            skip_freqs[k] += v
+
 skip_total = sum(skip_freqs.values())
 alpha = 0.75
 n = len(vocabulary)
 data = []
 row = []
 col = []
+
+
 for k, v in skip_freqs.items():
     a = idx2word[k[0]]
     b = idx2word[k[1]]
@@ -63,6 +69,7 @@ for k, v in skip_freqs.items():
     data.append(npmi)
     row.append(aidx)
     col.append(aidx)
+
 
 M = coo_matrix((data, (row, col)), shape=(n, n))
 U, _, V = svds(M, k=256) # U, S, V
