@@ -11,7 +11,7 @@ import logging
 import numpy
 cimport numpy as np
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ )
 
 def get_cooccur(corpus, word2id, int window):
     """

@@ -183,3 +183,4 @@ a.save_model('mese', 'tests/models')
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
 # read in a model a.load_model(path-to-model)
+
