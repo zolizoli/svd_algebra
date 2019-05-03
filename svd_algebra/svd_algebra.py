@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """Main module."""
+import pyximport
+pyximport.install()
+
 import heapq
-import math
 import pickle
 from collections import Counter
 from os import listdir
@@ -12,8 +14,9 @@ import numpy as np
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
 from scipy.spatial.distance import cosine
-from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import svds
+
+from svd_algebra.fill_matrix import count_skipgrams
 
 
 class SVDAlgebra:
@@ -83,30 +86,8 @@ class SVDAlgebra:
                 else:
                     skip_freqs[k] += v
 
-        skip_total = sum(skip_freqs.values())
-
-        # generate sparse pmi matrix
-        alpha = 0.75
-        n = len(vocabulary)
-        data = []
-        row = []
-        col = []
-        # bottleneck
-        for k, v in skip_freqs.items():
-            a = idx2word[k[0]]
-            b = idx2word[k[1]]
-            aidx = vocabulary.index(a)
-            bidx = vocabulary.index(b)
-            pa = word_freq[aidx]
-            pb = word_freq[bidx] ** alpha
-            pab = v / skip_total
-            npmi = math.log2(pab / (pa * pb))
-            data.append(npmi)
-            row.append(aidx)
-            col.append(aidx)
-
-        M = coo_matrix((data, (row, col)), shape=(n, n))
-
+        # use fill_matrix.pyx to speed up the creation of M
+        M = count_skipgrams(skip_freqs, vocabulary, idx2word, word_freq)
         # singular value decomposition
         U, _, V = svds(M, k=256)  # U, S, V
         # add context to U
@@ -178,7 +159,7 @@ class SVDAlgebra:
 
 # just for testing
 a = SVDAlgebra('tests/testdata')
-a.save_model('mese', 'tests/models')
+a.save_model('full', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
