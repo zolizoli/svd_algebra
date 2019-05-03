@@ -2,7 +2,6 @@ import math
 from scipy.sparse import coo_matrix
 
 cimport cython
-from cython.parallel import prange
 cimport numpy as np
 import numpy
 

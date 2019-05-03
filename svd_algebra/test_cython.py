@@ -8,6 +8,8 @@ from collections import Counter
 from os.path import isfile, join
 
 import numpy as np
+from bounter import bounter
+import psutil
 from keras.preprocessing.sequence import skipgrams
 from keras.preprocessing import text
 from scipy.sparse import coo_matrix
@@ -39,23 +41,19 @@ skip_grams = [skipgrams(wid,
               for wid in wids]
 
 # collect skipgram frequencies
-skip_freqs = dict()
+memory_to_use = int(psutil.virtual_memory().free / 1024 / 1024)
+bounts = bounter(size_mb=memory_to_use)
+
 for skip in skip_grams:
     raw_skip = [(p[0], p[1]) for p in skip[0]]
-    freqs = Counter(raw_skip)
-    for k, v in freqs.items():
-        if k not in skip_freqs:
-            skip_freqs[k] = v
-        else:
-            skip_freqs[k] += v
-
-M = count_skipgrams(skip_freqs, vocabulary, idx2word, word_freq)
-
-# singular value decomposition
-U, _, V = svds(M, k=256)  # U, S, V
-# add context to U
-word_vecs = U + V.T
-# normalize rows
-word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs * word_vecs,
-                                            axis=0,
-                                            keepdims=True))
+    bounts.update(raw_skip)
+# M = count_skipgrams(skip_freqs, vocabulary, idx2word, word_freq)
+#
+# # singular value decomposition
+# U, _, V = svds(M, k=256)  # U, S, V
+# # add context to U
+# word_vecs = U + V.T
+# # normalize rows
+# word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs * word_vecs,
+#                                             axis=0,
+#                                             keepdims=True))

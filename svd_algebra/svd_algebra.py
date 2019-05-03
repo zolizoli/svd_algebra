@@ -39,6 +39,7 @@ class SVDAlgebra:
     #####                     Initialize object                           #####
     ###########################################################################
     def read_corpus(self, corpus_dir):
+        #TODO: read corpus files line by line
         txts = [f for f in listdir(corpus_dir)
                 if isfile(join(corpus_dir, f))]
         for txt in txts:
@@ -61,8 +62,10 @@ class SVDAlgebra:
         vocab_size = len(vocabulary) + 1
 
         doc_freq = tokenizer.texts_to_matrix(texts, mode='freq')
+        #TODO: # word_freq[0] is 0.0 and len(word_freq) is len(vocabulary) + 1 WHY?
         word_freq = np.average(doc_freq, axis=0)[1:]
 
+        #TODO: use iterator instead of this mess
         # skipgrams
         wids = [[word2idx[w] for w in
                  text.text_to_word_sequence(doc, filters='\t\n')]
@@ -77,6 +80,9 @@ class SVDAlgebra:
 
         # collect skipgram frequencies
         skip_freqs = dict()
+        #TODO: use bounter instead of Counter https://github.com/RaRe-Technologies/bounter
+        # bounter expects a string, but we have (Int, Int) tuples here
+        # maybe
         for skip in skip_grams:
             raw_skip = [(p[0], p[1]) for p in skip[0]]
             freqs = Counter(raw_skip)
