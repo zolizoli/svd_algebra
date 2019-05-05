@@ -1,8 +1,9 @@
 import pyximport
 pyximport.install()
 
-from nltk.util import skipgrams
 from bounter import bounter
+from nltk.util import skipgrams
+import numpy as np
 from scipy.sparse.linalg import svds
 
 from svd_algebra.count_skipgrams import count_skipgrams
