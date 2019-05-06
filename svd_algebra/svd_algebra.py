@@ -6,17 +6,16 @@ pyximport.install()
 
 import heapq
 import pickle
-from collections import Counter
 from os import listdir
 from os.path import isfile, join
 
 import numpy as np
-from keras.preprocessing.sequence import skipgrams
-from keras.preprocessing import text
+from bounter import bounter
+from nltk.util import skipgrams
 from scipy.spatial.distance import cosine
 from scipy.sparse.linalg import svds
 
-from svd_algebra.fill_matrix import count_skipgrams
+from svd_algebra.count_skipgrams import count_skipgrams
 
 
 class SVDAlgebra:
@@ -49,51 +48,20 @@ class SVDAlgebra:
 
     def decompose(self, corpus):
 
-        texts = []
-        for e in corpus:
-            texts.append(e)
+        skip_counts = bounter(size_mb=1024)
+        word_counts = bounter(size_mb=1024)
+        for l in corpus:
+            wds = l.split()
+            skips = list(skipgrams(wds, 2, 5))
+            skips = ['#'.join(t) for t in skips]
+            if len(wds) > 0 and len(skips) > 0:
+                skip_counts.update(skips)
+                word_counts.update(wds)
 
-        # tokenize, get unigram probs
-        tokenizer = text.Tokenizer(filters='\t\n')
-        tokenizer.fit_on_texts(texts)
-        idx2word = tokenizer.index_word
-        word2idx = tokenizer.word_index
-        vocabulary = list(word2idx.keys())
-        vocab_size = len(vocabulary) + 1
-
-        doc_freq = tokenizer.texts_to_matrix(texts, mode='freq')
-        #TODO: # word_freq[0] is 0.0 and len(word_freq) is len(vocabulary) + 1 WHY?
-        word_freq = np.average(doc_freq, axis=0)[1:]
-
-        #TODO: use iterator instead of this mess
-        # skipgrams
-        wids = [[word2idx[w] for w in
-                 text.text_to_word_sequence(doc, filters='\t\n')]
-                for doc in texts]
-        # don't use negative samples and don't shuffle words!!!
-        skip_grams = [skipgrams(wid,
-                                vocabulary_size=vocab_size,
-                                window_size=10,
-                                negative_samples=0.0,
-                                shuffle=False)
-                      for wid in wids]
-
-        # collect skipgram frequencies
-        skip_freqs = dict()
-        #TODO: use bounter instead of Counter https://github.com/RaRe-Technologies/bounter
-        # bounter expects a string, but we have (Int, Int) tuples here
-        # maybe
-        for skip in skip_grams:
-            raw_skip = [(p[0], p[1]) for p in skip[0]]
-            freqs = Counter(raw_skip)
-            for k, v in freqs.items():
-                if k not in skip_freqs:
-                    skip_freqs[k] = v
-                else:
-                    skip_freqs[k] += v
-
-        # use fill_matrix.pyx to speed up the creation of M
-        M = count_skipgrams(skip_freqs, vocabulary, idx2word, word_freq)
+        vocabulary = list(word_counts)
+        shift = 1 # shift 1 does nothing since log(1) == 0.0
+        M = count_skipgrams(skip_counts, word_counts, vocabulary, shift)
+        #TODO: eigen something trick
         # singular value decomposition
         U, _, V = svds(M, k=256)  # U, S, V
         # add context to U
