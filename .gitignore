@@ -106,3 +106,5 @@ ENV/
 *.
 tests/models
 tests/testdata
+
+.idea/

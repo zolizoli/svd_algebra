@@ -2,14 +2,15 @@
 
 """Main module."""
 import pyximport
-pyximport.install()
 
+import io
 import heapq
 import pickle
 from os import listdir
 from os.path import isfile, join
 
 import numpy as np
+pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=True)
 from bounter import bounter
 from nltk.util import skipgrams
 from scipy.spatial.distance import cosine
@@ -42,7 +43,7 @@ class SVDAlgebra:
         txts = [f for f in listdir(corpus_dir)
                 if isfile(join(corpus_dir, f))]
         for txt in txts:
-            with open(join(corpus_dir, txt), 'r') as f:
+            with io.open(join(corpus_dir, txt), 'r', encoding='utf-8') as f:
                 for l in f:
                     yield l.strip()
 
