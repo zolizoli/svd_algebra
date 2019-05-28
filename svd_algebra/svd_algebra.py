@@ -118,7 +118,34 @@ class SVDAlgebra:
     def similar(self, positive, negative, topn=3):
         """Analogy difference"""
         #TODO: implement function
-        pass
+        wdidx1 = self.vocabulary.index(positive[0])
+        wdidx2 = self.vocabulary.index(positive[1])
+        wdidx3 = self.vocabulary.index(negative)
+        pos1_vector = self.U[wdidx1]
+        pos2_vector = self.U[wdidx2]
+        neg_vector = self.U[wdidx3]
+        target_vector = np.add(np.subtract(pos1_vector, pos2_vector), neg_vector)
+        sims = list(self.U.dot(target_vector))
+        most_similar_values = heapq.nlargest(20, sims)
+        most_similar_indices = [sims.index(e) for e
+                                in list(most_similar_values)]
+        most_similar_words = [self.vocabulary[e] for e
+                              in most_similar_indices]
+
+        def clean_word(wd):
+            if wd.isalpha() and len(wd) > 3:
+                return True
+            else:
+                return False
+
+        most_similar_words = [e for e in most_similar_words if clean_word(e)]
+        if positive[0] in most_similar_words:
+            most_similar_words.remove(positive[0])
+        if positive[1] in most_similar_words:
+            most_similar_words.remove(positive[1])
+        if negative in most_similar_words:
+            most_similar_words.remove(negative)
+        return most_similar_words[0]
 
     def doesnt_match(self, lst):
         """odd-one-out"""
@@ -133,8 +160,8 @@ class SVDAlgebra:
     # - more functions
 
 # just for testing
-a = SVDAlgebra('tests/testdata')
-a.save_model('full', 'tests/models')
+a = SVDAlgebra('tests/models')
+#a.save_model('full', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
