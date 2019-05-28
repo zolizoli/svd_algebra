@@ -16,17 +16,35 @@ SVD Algebra
 
 
 
-Python Boilerplate contains all the boilerplate you need to create a Python package.
+A package for generating and exploring old-school
+word embeddings.
+
+The package is under development and it is not suitable
+for serious work right now.
+
 
 
 * Free software: MIT license
-* Documentation: https://svd-algebra.readthedocs.io.
+* Documentation (link is broken): https://svd-algebra.readthedocs.io.
 
 
-Features
---------
+Pre-trained word embeddings
+---------------------------
+* A model trained on the English wikipedia dump along with the accompanying vocabulary can be downloaded here https://drive.google.com/open?id=1C1o53_6S4bS-Lw3wBBvaP9011tajZrq1
 
-* TODO
+Evaluation
+----------
+Coming soon!
+
+Why don't you use word2vec or other neural embeddings?
+------------------------------------------------------
+* I'd like to learn Cython and linalg, that's the main reason
+* For most NLP task, a PMI matrix with some SVD is enough, read Chris Moody's Stop using word2vec post https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
+* A well-parametrised old-school embedding is as good as a neural one according to this https://rare-technologies.com/making-sense-of-word2vec/
+
+
+
+
 
 Credits
 -------
