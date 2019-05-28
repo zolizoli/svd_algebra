@@ -117,16 +117,27 @@ class SVDAlgebra:
 
     def similar(self, positive, negative, topn=3):
         """Analogy difference"""
-        #TODO: implement function
-        wdidx1 = self.vocabulary.index(positive[0])
-        wdidx2 = self.vocabulary.index(positive[1])
-        wdidx3 = self.vocabulary.index(negative)
+        try:
+            wdidx1 = self.vocabulary.index(positive[0])
+        except Exception as e:
+            print('Not in vocabulary', positive[0])
+            return []
+        try:
+            wdidx2 = self.vocabulary.index(positive[1])
+        except Exception as e:
+            print('Not in vocabulary', positive[1])
+            return []
+        try:
+            wdidx3 = self.vocabulary.index(negative)
+        except Exception as e:
+            print('Not in vocabulary', negative)
+            return []
         pos1_vector = self.U[wdidx1]
         pos2_vector = self.U[wdidx2]
         neg_vector = self.U[wdidx3]
         target_vector = np.add(np.subtract(pos1_vector, pos2_vector), neg_vector)
         sims = list(self.U.dot(target_vector))
-        most_similar_values = heapq.nlargest(20, sims)
+        most_similar_values = heapq.nlargest(topn+10, sims)
         most_similar_indices = [sims.index(e) for e
                                 in list(most_similar_values)]
         most_similar_words = [self.vocabulary[e] for e
@@ -145,7 +156,10 @@ class SVDAlgebra:
             most_similar_words.remove(positive[1])
         if negative in most_similar_words:
             most_similar_words.remove(negative)
-        return most_similar_words[0]
+        if len(most_similar_words) > 0:
+            return most_similar_words[:topn]
+        else:
+            return []
 
     def doesnt_match(self, lst):
         """odd-one-out"""
