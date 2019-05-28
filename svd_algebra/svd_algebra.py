@@ -163,15 +163,14 @@ class SVDAlgebra:
 
     def doesnt_match(self, lst):
         """odd-one-out"""
-        #TODO: finish implementation
         word_idxs = [self.vocabulary.index(wd) for wd in lst]
         word_vectors = np.vstack(self.U[i] for i in word_idxs)
         mean = np.mean(word_vectors)
-        pass
+        dists = [abs(cosine(e, mean)) for e in word_vectors]
+        mdist = max(dists)
+        midx = dists.index(mdist)
+        return lst[midx]
 
-    #TODO:
-    # - better save/load corpus
-    # - more functions
 
 # just for testing
 a = SVDAlgebra('tests/models')
