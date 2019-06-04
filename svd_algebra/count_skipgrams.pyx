@@ -5,7 +5,7 @@ import math
 
 from bounter import bounter
 import numpy
-from scipy.sparse import coo_matrix
+from scipy.sparse import csc_matrix
 
 
 @cython.boundscheck(False)
@@ -39,5 +39,5 @@ def count_skipgrams(skipfreqs, wordfreqs, vocabulary, shift):
             row[i] = vocabulary.index(a)
             col[i] = vocabulary.index(b)
             i += 1
-    M = coo_matrix((data, (row, col)), shape=(n, n))
+    M = csc_matrix((data, (row, col)), shape=(n, n))
     return M

@@ -12,6 +12,7 @@ from os.path import isfile, join
 import numpy as np
 pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=True)
 from bounter import bounter
+from sparsesvd import sparsesvd
 from nltk.util import skipgrams
 from scipy.spatial.distance import cosine
 from scipy.sparse.linalg import svds
@@ -64,13 +65,17 @@ class SVDAlgebra:
         M = count_skipgrams(skip_counts, word_counts, vocabulary, shift)
         #TODO: eigen something trick
         # singular value decomposition
-        U, _, V = svds(M, k=256)  # U, S, V
+        #U, _, V = svds(M, k=256)  # U, S, V
+        U, _, V = sparsesvd(M, 300)
         # add context to U
-        word_vecs = U + V.T
+        word_vecs = U.T + V.T
+        del U
+        del V
         # normalize rows
         word_vecs_norm = word_vecs / np.sqrt(np.sum(word_vecs * word_vecs,
                                                     axis=0,
                                                     keepdims=True))
+        del word_vecs
         return vocabulary, word_vecs_norm
 
     ###########################################################################
@@ -87,6 +92,12 @@ class SVDAlgebra:
     ###########################################################################
     #####                        Word Algebra                             #####
     ###########################################################################
+    def clean_word(self, wd):
+        if wd.isalpha() and len(wd) > 3:
+            return True
+        else:
+            return False
+
     def distance(self, wd1, wd2):
         """returns the cosine distance btw wd1 and wd2"""
         try:
@@ -104,14 +115,16 @@ class SVDAlgebra:
             wdidx = self.vocabulary.index(wd)
             w_vector = self.U[wdidx]
             sims = list(self.U.dot(w_vector))
-            most_similar_values = heapq.nlargest(n+1, sims)
+            most_similar_values = heapq.nlargest(n+10, sims)
             most_similar_indices = [sims.index(e) for e
                                     in list(most_similar_values)]
             most_similar_words = [self.vocabulary[e] for e
                                   in most_similar_indices]
+            most_similar_words = [e for e in most_similar_words
+                                  if self.clean_word(e)]
             if wd in most_similar_words:
                 most_similar_words.remove(wd)
-            return most_similar_words
+            return most_similar_words[:n]
         except Exception as e:
             print(e)
 
@@ -135,21 +148,14 @@ class SVDAlgebra:
         pos1_vector = self.U[wdidx1]
         pos2_vector = self.U[wdidx2]
         neg_vector = self.U[wdidx3]
-        target_vector = np.add(np.subtract(pos1_vector, pos2_vector), neg_vector)
+        target_vector = np.subtract(neg_vector, np.add(pos1_vector, pos2_vector))
         sims = list(self.U.dot(target_vector))
         most_similar_values = heapq.nlargest(topn+10, sims)
         most_similar_indices = [sims.index(e) for e
                                 in list(most_similar_values)]
         most_similar_words = [self.vocabulary[e] for e
                               in most_similar_indices]
-
-        def clean_word(wd):
-            if wd.isalpha() and len(wd) > 3:
-                return True
-            else:
-                return False
-
-        most_similar_words = [e for e in most_similar_words if clean_word(e)]
+        most_similar_words = [e for e in most_similar_words if self.clean_word(e)]
         if positive[0] in most_similar_words:
             most_similar_words.remove(positive[0])
         if positive[1] in most_similar_words:
@@ -160,6 +166,7 @@ class SVDAlgebra:
             return most_similar_words[:topn]
         else:
             return []
+
 
     def doesnt_match(self, lst):
         """odd-one-out"""
@@ -173,8 +180,8 @@ class SVDAlgebra:
 
 
 # just for testing
-a = SVDAlgebra('tests/models')
-#a.save_model('full', 'tests/models')
+a = SVDAlgebra('tests/testdata')
+a.save_model('full', 'tests/models')
 #TODO:
 # initialize an empty object like a = SVDAlgebra()
 # read in a cropus like a.read_corpus(path-to-folder)
