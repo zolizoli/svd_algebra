@@ -1,6 +1,6 @@
 bounter==1.1.0
 Cython==0.29.7
-nltk==3.4.1
+nltk==3.4.5
 numpy==1.16.3
 scipy==1.2.1
 six==1.12.0
